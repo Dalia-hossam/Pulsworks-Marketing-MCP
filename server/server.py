@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-from server.tools import get_campaigns, get_campaign, approve_campaign,change_role
+from server.tools import get_campaigns, get_campaign, approve_campaign,change_role, generate_campaign_report
 from server.resources import get_campaign_policy
 from server.prompts import generate_campaign_summary_prompt
 
@@ -42,6 +42,10 @@ def set_role(role: str):
     """Change current user role."""
     return change_role(role)
 
+@mcp.tool()
+def campaign_report():
+    """Generate campaign report."""
+    return generate_campaign_report()
 
 # ----------------------
 # Resource

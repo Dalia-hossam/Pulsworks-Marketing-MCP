@@ -1,7 +1,7 @@
 from db.models import get_all_campaigns, get_campaign_by_id
 from server.validation import validate_campaign_input
 from server.auth import is_admin
-
+import time
 
 def get_campaigns():
     campaigns = get_all_campaigns()
@@ -53,4 +53,22 @@ def change_role(role: str):
                 "approve_campaign_tool"
             ]
         )
+    }
+
+
+def generate_campaign_report():
+    progress = []
+
+    for i in range(5):
+        time.sleep(1)
+        progress.append(f"{(i + 1) * 20}% completed")
+
+    return {
+        "status": "Completed",
+        "progress": progress,
+        "report": {
+            "total_campaigns": 2,
+            "active_campaigns": 1,
+            "planned_campaigns": 1
+        }
     }
