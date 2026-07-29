@@ -1,28 +1,55 @@
 from mcp.server.fastmcp import FastMCP
 
-from server.tools import list_campaigns, campaign_details
+from server.tools import get_campaigns, get_campaign, approve_campaign
 from server.resources import get_campaign_policy
 from server.prompts import generate_campaign_summary_prompt
 
+# Create MCP Server
 mcp = FastMCP("PulseWorks Marketing MCP")
 
 
+# ----------------------
+# Tools
+# ----------------------
+
 @mcp.tool()
-def get_campaigns():
+def list_campaigns():
     """Return all marketing campaigns."""
-    return list_campaigns()
+    return get_campaigns()
 
 
 @mcp.tool()
-def get_campaign(campaign_id: int):
-    """Return details for one campaign."""
-    return campaign_details(campaign_id)
+def campaign_details(campaign_id: int):
+    """Return details of one campaign."""
+    return get_campaign(campaign_id)
 
+
+@mcp.tool()
+def approve_campaign_tool(username: str, password: str, campaign_id: int):
+    """Approve a campaign (Admin only)."""
+    from server.auth import authenticate
+
+    user = authenticate(username, password)
+
+    if not user:
+        raise ValueError("Invalid username or password.")
+
+    return approve_campaign(user, campaign_id)
+
+
+# ----------------------
+# Resource
+# ----------------------
 
 @mcp.resource("policy://campaign")
 def campaign_policy():
+    """Marketing campaign policy."""
     return get_campaign_policy()
 
+
+# ----------------------
+# Prompt
+# ----------------------
 
 @mcp.prompt()
 def campaign_summary(campaign_id: int):
