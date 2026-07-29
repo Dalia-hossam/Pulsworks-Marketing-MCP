@@ -29,3 +29,28 @@ def approve_campaign(user, campaign_id: int):
     return {
         "message": f"Campaign {campaign_id} approved successfully."
     }
+    
+current_role = "employee"
+
+def change_role(role: str):
+    global current_role
+
+    allowed_roles = ["employee", "manager", "admin"]
+
+    if role not in allowed_roles:
+        raise ValueError("Invalid role.")
+
+    current_role = role
+
+    return {
+        "message": f"Role changed to {role}.",
+        "available_tools": (
+            ["list_campaigns", "campaign_details"]
+            if role != "admin"
+            else [
+                "list_campaigns",
+                "campaign_details",
+                "approve_campaign_tool"
+            ]
+        )
+    }

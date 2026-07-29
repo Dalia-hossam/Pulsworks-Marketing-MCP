@@ -1,8 +1,9 @@
 from mcp.server.fastmcp import FastMCP
 
-from server.tools import get_campaigns, get_campaign, approve_campaign
+from server.tools import get_campaigns, get_campaign, approve_campaign,change_role
 from server.resources import get_campaign_policy
 from server.prompts import generate_campaign_summary_prompt
+
 
 # Create MCP Server
 mcp = FastMCP("PulseWorks Marketing MCP")
@@ -36,6 +37,11 @@ def approve_campaign_tool(username: str, password: str, campaign_id: int):
 
     return approve_campaign(user, campaign_id)
 
+@mcp.tool()
+def set_role(role: str):
+    """Change current user role."""
+    return change_role(role)
+
 
 # ----------------------
 # Resource
@@ -58,3 +64,4 @@ def campaign_summary(campaign_id: int):
 
 if __name__ == "__main__":
     mcp.run()
+
