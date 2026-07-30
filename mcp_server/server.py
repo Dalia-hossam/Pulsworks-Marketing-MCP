@@ -7,6 +7,12 @@ from mcp_server.tools import (
     change_role, 
     generate_campaign_report
 )
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  
+db_path = os.getenv("DB_PATH", "db/marketing.db")
+
 from mcp_server.resources import get_campaign_policy
 from mcp_server.prompts import generate_campaign_summary_prompt
 from mcp_server.auth import authenticate
