@@ -4,66 +4,71 @@
 
 This project implements a Model Context Protocol (MCP) Server for PulseWorks Marketing.
 
-The goal is to provide a secure interface between an AI assistant and the company's marketing database without exposing direct database access.
+The goal is to provide a secure, standardized interface between an AI assistant and the company's marketing database without exposing direct database access.
 
-The MCP Server allows the AI assistant to retrieve campaign information, access company policies, generate reports, and perform authorized operations while enforcing validation and role-based permissions.
+The MCP Server allows the AI assistant to retrieve campaign information, access company performance metrics, generate analytical reports, and execute authorized marketing actions while enforcing strict validation and role-based access control (RBAC).
 
 ---
 
 ## Problem Statement
 
-Marketing employees need quick access to campaign information.
+Marketing employees need fast, natural language access to campaign performance and customer data. 
 
-Allowing an LLM to connect directly to the database is unsafe because it may:
+Allowing an LLM to connect directly to an enterprise database is unsafe because it may:
 
-- Access unauthorized data
-- Perform unauthorized actions
-- Bypass company policies
-- Execute invalid requests
+- Access unauthorized or sensitive financial data
+- Perform unauthorized database mutations or deletions
+- Bypass corporate security policies
+- Execute invalid or malformed SQL queries
 
-The MCP Server solves this by acting as a secure layer between the AI model and the database.
+The MCP Server solves this by acting as a secure, sandboxed mediation layer between the AI model and the underlying database.
 
 ---
 
 ## Technologies
 
-- Python
-- SQLite
-- MCP SDK 1.29.0
-- JSON Schema
-- VS Code MCP
-- Git & GitHub
+- **Python 3.12+**
+- **SQLite3** (Relational Database with SQL Seeding)
+- **MCP Python SDK** (`mcp`)
+- **FastMCP & Pydantic** (Schema Validation)
+- **Asyncio & Stdio Transport Protocol**
+- **Git & GitHub**
 
 ---
 
 ## Project Structure
 
-```
-PulseWorks-Marketing-MCP/
+```text
+Pulsworks-Marketing-MCP/
 
 client/
+├── agent.py          # Interactive Local MCP Client / Agent
+└── demo.py           # Comprehensive evaluation suite for MCP protocol concerns
+
 db/
-docs/
-server/
+├── schema.sql        # Database schema definitions
+└── seed.sql          # Initial mock data (users, campaigns, results)
 
-README.md
-requirements.txt
-run.py
-```
+docs/                 # System documentation & specifications
 
----
+mcp_server/
+├── auth.py           # Authentication & RBAC security enforcement layer
+├── database.py       # SQLite connection manager & query layer
+└── server.py         # Primary MCP Server implementation & tool definitions
+
+requirements.txt      # Python package dependencies
+README.md             # Project documentation
 
 ## Current Features
 
 - SQLite Database
 - Authentication
 - Role-based Authorization
-- Campaign Tools
+- MCP Tool Suite
 - Input Validation
-- Resources
-- Prompt Templates
-- MCP Client
-- MCP Server
+-Resources & System Prompts
+- Interactive Offline MCP Agent
+- Full Verification Suite
 
 ---
 
