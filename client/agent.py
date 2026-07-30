@@ -39,13 +39,19 @@ async def run_interactive_agent():
                 print(f"\n🧠 Agent processing prompt: '{user_prompt}'...")
                 prompt_lower = user_prompt.lower()
 
-                # Dynamic Tool Intent Matching based on seed data
-                if "report" in prompt_lower or "summary" in prompt_lower or "analytics" in prompt_lower:
+                # Dynamic Tool Intent Matching adjusted for RAG & policies
+                if any(keyword in prompt_lower for keyword in ["search", "policy", "guidelines", "discount", "budget", "rule", "approval"]):
+                    selected_tool = "search_knowledge_base"
+                    tool_args = {
+                        "query": user_prompt,
+                        "entity_id": "campaign_1",
+                        "top_k": 3
+                    }
+                elif "report" in prompt_lower or "summary" in prompt_lower or "analytics" in prompt_lower:
                     selected_tool = "campaign_report"
                     tool_args = {}
-                elif "approve" in prompt_lower:
+                elif "approve campaign" in prompt_lower or "execute approval" in prompt_lower:
                     selected_tool = "approve_campaign_tool"
-                    # Correct password from seed SQL: admin / admin123
                     tool_args = {"campaign_id": 1, "username": "admin", "password": "admin123"}
                 elif "role" in prompt_lower or "admin" in prompt_lower:
                     selected_tool = "set_role"

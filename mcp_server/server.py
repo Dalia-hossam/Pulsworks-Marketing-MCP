@@ -88,6 +88,19 @@ def campaign_summary(campaign_id: int):
     """Parameterized starting prompt template for campaign ROI analysis."""
     return generate_campaign_summary_prompt(campaign_id)
 
+from mcp_server.rag.rag_tool import search_knowledge_base_handler
+
+@mcp.tool()
+def search_knowledge_base(query: str, entity_id: str, top_k: int = 3) -> str:
+    """Search internal campaign policies and markdown documents."""
+    return search_knowledge_base_handler(
+        {
+            "query": query,
+            "entity_id": entity_id,
+            "top_k": top_k
+        },
+        session_role="admin"
+    )
 
 if __name__ == "__main__":
     mcp.run()
