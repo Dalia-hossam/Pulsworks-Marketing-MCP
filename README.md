@@ -88,7 +88,7 @@ JSON Schema validation is applied before processing tool inputs.
 
 ## Authors
 
-**Name:** Dalia Abdlmjyd
+**Name:** Dalia Hossam
 
 Alexandria University
 
