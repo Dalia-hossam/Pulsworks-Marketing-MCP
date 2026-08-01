@@ -1,6 +1,9 @@
-# Campaign Approval Policy
+# Corporate Campaign & Spending Policy
 
-1. Every campaign must have a defined budget.
-2. Only managers and admins can approve campaigns.
-3. Campaigns with budgets above $10,000 require admin approval.
-4. Completed campaigns cannot be modified.
+## Budget Controls
+* **Standard Budget Updates**: Up to $10,000.00 can be processed automatically by authorized Managers.
+* **High-Value Updates**: Any budget update exceeding **$10,000.00** requires explicit mid-call human signoff via Elicitation.
+
+## Audit & Compliance
+* All pause and budget change requests must include non-empty rationale string.
+* Actions are recorded in the `audit_logs` table with user attribution.

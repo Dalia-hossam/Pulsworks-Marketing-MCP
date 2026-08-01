@@ -1,101 +1,28 @@
-# PulseWorks Marketing MCP Server
+# Marketing Campaign Management MCP Server
 
-## Project Overview
+## System Context & Risk Problem Framing
+Our marketing team manages active ad campaign budgets across clients. Direct database access poses extreme risks: an unchecked LLM could accidentally wipe out active budgets or pause live revenue-generating campaigns.
 
-This project implements a Model Context Protocol (MCP) Server for PulseWorks Marketing.
+We solved this by building an **MCP Server** in front of our database.
 
-The goal is to provide a secure, standardized interface between an AI assistant and the company's marketing database without exposing direct database access.
+## Database & ERD Structure
+* **users**: `(id, username, password, role)` (`ANALYST`, `MANAGER`, `ADMIN`)
+* **customers**: `(id, full_name, email, company, status)`
+* **campaigns**: `(id, campaign_name, start_date, end_date, budget, max_daily_spend, status)`
+* **campaign_results**: `(id, campaign_id, customer_id, clicks, conversions, revenue)`
+* **audit_logs**: `(id, user_id, action, details, performed_at)`
 
-The MCP Server allows the AI assistant to retrieve campaign information, access company performance metrics, generate analytical reports, and execute authorized marketing actions while enforcing strict validation and role-based access control (RBAC).
+## Protocol Concerns Implementation Summary
 
----
+| Tool / Resource | Type | Role Required | Elicitation Trigger | Risk Mitigation / Rationale |
+|---|---|---|---|---|
+| `search_knowledge_base` | Read-only | `ANALYST`+ | None | Uses BM25 to safely query campaign performance text. Filters rows by role in handler. |
+| `update_campaign_budget` | Write | `MANAGER`+ | Budget > $10,000 | Modifies company financial commitments. Triggers `elicitation/create` if > $10k. |
+| `pause_campaign` | Write | `MANAGER`+ | None | Pauses campaign spend and records mandatory log in `audit_logs`. |
+| `policy://campaign-rules` | Resource | `ANALYST`+ | None | Policy document exposed via `resources/read` for reasoning over spending rules. |
 
-## Problem Statement
+### Capability Fallback Strategy
+If a client connects declaring `elicitation: false` during `initialize`, high-budget updates (> $10,000) are blocked by the server handler with a clear error message rather than silently failing or making unsafe changes.
 
-Marketing employees need fast, natural language access to campaign performance and customer data. 
-
-Allowing an LLM to connect directly to an enterprise database is unsafe because it may:
-
-- Access unauthorized or sensitive financial data
-- Perform unauthorized database mutations or deletions
-- Bypass corporate security policies
-- Execute invalid or malformed SQL queries
-
-The MCP Server solves this by acting as a secure, sandboxed mediation layer between the AI model and the underlying database.
-
----
-
-## Technologies
-
-- **Python 3.12+**
-- **SQLite3** (Relational Database with SQL Seeding)
-- **MCP Python SDK** (`mcp`)
-- **FastMCP & Pydantic** (Schema Validation)
-- **Asyncio & Stdio Transport Protocol**
-- **Git & GitHub**
-
----
-
-## Project Structure
-
-```text
-Pulsworks-Marketing-MCP/
-
-client/
-├── agent.py          # Interactive Local MCP Client / Agent
-└── demo.py           # Comprehensive evaluation suite for MCP protocol concerns
-
-db/
-├── schema.sql        # Database schema definitions
-└── seed.sql          # Initial mock data (users, campaigns, results)
-
-docs/                 # System documentation & specifications
-
-mcp_server/
-├── auth.py           # Authentication & RBAC security enforcement layer
-├── database.py       # SQLite connection manager & query layer
-└── server.py         # Primary MCP Server implementation & tool definitions
-
-requirements.txt      # Python package dependencies
-README.md             # Project documentation
-
-## Current Features
-
-- SQLite Database
-- Authentication
-- Role-based Authorization
-- MCP Tool Suite
-- Input Validation
--Resources & System Prompts
-- Interactive Offline MCP Agent
-- Full Verification Suite
-
----
-
-## Security
-
-The server validates every request before accessing the database.
-
-Only authorized users can execute sensitive operations.
-
-JSON Schema validation is applied before processing tool inputs.
-
----
-
-## Future Features
-
-- Notifications
-- Elicitation
-- Progress Tracking
-- Streamable HTTP Transport
-
----
-```
-
-## Authors
-
-**Name:** Dalia Hossam
-
-Alexandria University
-
-Data Science Student
+### Transport Rationale
+Built with **stdio** for simple local developer usage, designed for easy deployment to **Streamable HTTP** behind auth proxies for multi-team web access.

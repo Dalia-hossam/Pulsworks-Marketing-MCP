@@ -13,6 +13,10 @@ def get_connection():
 
 
 def initialize_database():
+    # Delete existing database file to prevent primary key / unique constraint conflicts
+    if DB_PATH.exists():
+        DB_PATH.unlink()
+
     conn = get_connection()
     cursor = conn.cursor()
 

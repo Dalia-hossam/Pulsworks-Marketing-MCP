@@ -1,106 +1,67 @@
-import json
-from mcp.server.fastmcp import FastMCP, Context
-from mcp_server.tools import (
-    get_campaigns, 
-    get_campaign, 
-    approve_campaign, 
-    change_role, 
-    generate_campaign_report
-)
-import os
-from dotenv import load_dotenv
-
-load_dotenv()  
-db_path = os.getenv("DB_PATH", "db/marketing.db")
-
-from mcp_server.resources import get_campaign_policy
-from mcp_server.prompts import generate_campaign_summary_prompt
-from mcp_server.auth import authenticate
-
-mcp = FastMCP("PulseWorks Marketing MCP")
+"""
+MCP Protocol Engine implementation.
+"""
+from mcp_server.auth import session
+from mcp_server.tools import get_available_tools, handle_tool_call
+from mcp_server.resources import list_resources, read_resource
+from mcp_server.prompts import list_prompts, get_prompt
+from mcp_server.rag.rag_tool import search_knowledge_base_handler, index_campaign_data
 
 
-# ----------------------
-# Tools
-# ----------------------
+def initialize(client_capabilities: dict) -> dict:
+    """Handles protocol capability negotiation[cite: 1]."""
+    session.supports_elicitation = client_capabilities.get("elicitation", False)
+    session.supports_sampling = client_capabilities.get("sampling", False)
 
-@mcp.tool()
-def list_campaigns():
-    """Return all marketing campaigns."""
-    return json.dumps(get_campaigns())
+    index_campaign_data()  # Build search index
 
-
-@mcp.tool()
-def campaign_details(campaign_id: int):
-    """Return details and performance for a specific campaign."""
-    return json.dumps(get_campaign(campaign_id))
-
-
-@mcp.tool()
-async def approve_campaign_tool(
-    username: str, 
-    password: str, 
-    campaign_id: int, 
-    ctx: Context
-) -> str:
-    """Approve a campaign (Requires Admin or Manager rights)."""
-    user, _ = authenticate(username, password)
-
-    if not user:
-        raise ValueError("Invalid username or password.")
-
-    res = await approve_campaign(user, campaign_id, ctx)
-    return json.dumps(res)
-
-
-@mcp.tool()
-async def set_role(role: str, ctx: Context) -> str:
-    """Change current active session role and notify client of tool changes."""
-    result, role_changed = change_role(role)
-    
-    if role_changed and hasattr(ctx.session, 'send_tool_list_changed'):
-        await ctx.session.send_tool_list_changed()
-        
-    return json.dumps(result)
-
-
-@mcp.tool()
-async def campaign_report(ctx: Context) -> str:
-    """Generate campaign report with intermediate progress updates."""
-    await ctx.report_progress(progress=10, total=100)
-    report_data = await generate_campaign_report(ctx)
-    await ctx.report_progress(progress=100, total=100)
-    return json.dumps(report_data)
-
-
-# ----------------------
-# Resource & Prompt
-# ----------------------
-
-@mcp.resource("policy://campaign")
-def campaign_policy() -> str:
-    """Read-only company marketing campaign and risk compliance policy."""
-    return get_campaign_policy()
-
-
-@mcp.prompt()
-def campaign_summary(campaign_id: int):
-    """Parameterized starting prompt template for campaign ROI analysis."""
-    return generate_campaign_summary_prompt(campaign_id)
-
-from mcp_server.rag.rag_tool import search_knowledge_base_handler
-
-@mcp.tool()
-def search_knowledge_base(query: str, entity_id: str, top_k: int = 3) -> str:
-    """Search internal campaign policies and markdown documents."""
-    return search_knowledge_base_handler(
-        {
-            "query": query,
-            "entity_id": entity_id,
-            "top_k": top_k
+    return {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "tools": {"listChanged": True},
+            "resources": {},
+            "prompts": {},
+            "elicitation": {}
         },
-        session_role="admin"
-    )
+        "serverInfo": {"name": "Marketing-MCP-Server", "version": "1.0.0"}
+    }
 
-if __name__ == "__main__":
-    mcp.run()
+
+def process_rpc(request: dict, progress_cb=None, elicitation_cb=None) -> dict:
+    """Dispatches incoming JSON-RPC 2.0 requests[cite: 1]."""
+    method = request.get("method")
+    params = request.get("params", {})
+    req_id = request.get("id", 1)
+
+    if method == "initialize":
+        return {"jsonrpc": "2.0", "id": req_id, "result": initialize(params.get("capabilities", {}))}
+    
+    elif method == "tools/list":
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": get_available_tools()}}
+    
+    elif method == "tools/call":
+        tool_name = params.get("name")
+        args = params.get("arguments", {})
+        
+        if tool_name == "search_knowledge_base":
+            res = search_knowledge_base_handler(args)
+        else:
+            res = handle_tool_call(tool_name, args, progress_cb, elicitation_cb)
+            
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": res}]}}
+    
+    elif method == "resources/list":
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"resources": list_resources()}}
+    
+    elif method == "resources/read":
+        content = read_resource(params.get("uri"))
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"contents": [{"text": content}]}}
+    
+    elif method == "prompts/list":
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"prompts": list_prompts()}}
+    
+    elif method == "prompts/get":
+        prompt_text = get_prompt(params.get("name"), params.get("arguments", {}))
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"description": prompt_text}}
+
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method {method} not found"}}

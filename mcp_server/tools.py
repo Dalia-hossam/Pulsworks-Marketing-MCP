@@ -1,90 +1,100 @@
-import asyncio
-from db.models import get_all_campaigns, get_campaign_by_id
-from mcp_server.validation import validate_campaign_input
-from mcp_server.auth import active_session
-
-def get_campaigns():
-    campaigns = get_all_campaigns()
-    return [dict(campaign) for campaign in campaigns]
-
-
-def get_campaign(campaign_id: int):
-    valid, error = validate_campaign_input({"campaign_id": campaign_id})
-
-    if not valid:
-        raise ValueError(error)
-
-    campaign = get_campaign_by_id(campaign_id)
-
-    if campaign is None:
-        raise ValueError("Campaign not found.")
-
-    return dict(campaign)
+"""
+MCP Tool Specifications and Handlers.
+"""
+import time
+from db.database import get_connection
+from db.models import get_campaign_by_id
+from mcp_server.auth import session
+from mcp_server.validation import (
+    SearchKnowledgeBaseInput,
+    UpdateCampaignBudgetInput,
+    PauseCampaignInput
+)
 
 
-async def approve_campaign(user, campaign_id: int, ctx=None):
-    # Extract role safely from dictionary or object
-    role = user.get("role", "") if isinstance(user, dict) else getattr(user, "role", "")
-    
-    if role.upper() not in ["ADMIN", "MANAGER"]:
-        raise PermissionError("Only Admins and Managers can approve campaigns.")
-
-    campaign = get_campaign_by_id(campaign_id)
-    if not campaign:
-        raise ValueError("Campaign not found.")
-
-    campaign_dict = dict(campaign)
-    budget = campaign_dict.get("budget", 0)
-
-    # High budget elicitation check
-    if budget >= 5000:
-        if ctx and hasattr(ctx, 'elicit'):
-            try:
-                confirmation = await ctx.elicit(
-                    message=f"WARNING: Campaign '{campaign_dict['campaign_name']}' has a high budget (${budget:,.2f}). Approve?",
-                    schema={"type": "boolean"}
-                )
-                if not confirmation:
-                    return {"status": "Aborted", "message": "Approval cancelled."}
-            except Exception:
-                # Fallback if client doesn't fully handle elicitation response
-                pass
-
-    return {
-        "status": "Success",
-        "message": f"Campaign '{campaign_dict['campaign_name']}' (ID: {campaign_id}) approved successfully."
-    }
-
-
-def change_role(role: str):
-    allowed_roles = ["ANALYST", "MANAGER", "ADMIN"]
-    normalized_role = role.upper()
-
-    if normalized_role not in allowed_roles:
-        raise ValueError(f"Invalid role. Allowed roles: {allowed_roles}")
-
-    # Set active session role and check if it changed
-    role_changed = active_session.set_user({"username": "session_user", "role": normalized_role})
-
-    return {
-        "message": f"Role updated to {normalized_role}.",
-        "role_changed": role_changed
-    }, role_changed
-
-
-async def generate_campaign_report(ctx=None):
-    total_steps = 5
-    for i in range(1, total_steps + 1):
-        await asyncio.sleep(0.2)  # Non-blocking async sleep for MCP progress tracking
-        if ctx and hasattr(ctx, 'report_progress'):
-            await ctx.report_progress(progress=i * 20, total=100)
-
-    return {
-        "status": "Completed",
-        "report": {
-            "total_campaigns": 2,
-            "active_campaigns": 1,
-            "planned_campaigns": 1,
-            "total_revenue": 15700.00
+def get_available_tools() -> list[dict]:
+    """Returns accessible tools based on the active session role."""
+    tools = [
+        {
+            "name": "search_knowledge_base",
+            "description": "Search campaign performance notes using BM25 keyword matching.",
+            "inputSchema": SearchKnowledgeBaseInput.model_json_schema()
         }
-    }
+    ]
+
+    # Managers and Admins get write/mutating capabilities
+    if session.role in ("MANAGER", "ADMIN"):
+        tools.append({
+            "name": "update_campaign_budget",
+            "description": "Update campaign total budget. Budgets > $10,000 require human sign-off via elicitation.",
+            "inputSchema": UpdateCampaignBudgetInput.model_json_schema()
+        })
+        tools.append({
+            "name": "pause_campaign",
+            "description": "Pause an active campaign immediately and log audit record.",
+            "inputSchema": PauseCampaignInput.model_json_schema()
+        })
+
+    return tools
+
+
+def handle_tool_call(name: str, args: dict, progress_cb=None, elicitation_cb=None) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        if name == "update_campaign_budget":
+            parsed = UpdateCampaignBudgetInput.model_validate(args)
+            campaign = get_campaign_by_id(parsed.campaign_id)
+            if not campaign:
+                return f"Error: Campaign ID {parsed.campaign_id} not found."
+
+            # Protocol Concern: Elicitation for high-budget updates (> $10k)
+            if parsed.new_budget > 10000.0:
+                if not session.supports_elicitation:
+                    return (
+                        "ERROR: Budget update exceeds $10,000 threshold, which requires human sign-off. "
+                        "The connected client does not support elicitation capabilities."
+                    )
+                
+                # Stop mid-call and elicit human sign-off
+                approved = elicitation_cb(
+                    f"RISK CONFIRMATION: Requested budget update for Campaign #{parsed.campaign_id} "
+                    f"is ${parsed.new_budget:,.2f} (exceeds $10,000 limit). Do you approve this increase?"
+                )
+                if not approved:
+                    return "OPERATION CANCELLED: Human operator rejected budget increase."
+
+            # Protocol Concern: Progress Tracking for batch execution
+            if progress_cb:
+                progress_cb(20, "Validating campaign status...")
+                time.sleep(0.3)
+                progress_cb(60, "Updating database budget allocation...")
+                time.sleep(0.3)
+
+            cursor.execute("UPDATE campaigns SET budget = ? WHERE id = ?", (parsed.new_budget, parsed.campaign_id))
+            cursor.execute(
+                "INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)",
+                (session.user_id, "UPDATE_BUDGET", f"Campaign {parsed.campaign_id} budget updated to ${parsed.new_budget}")
+            )
+            conn.commit()
+
+            if progress_cb:
+                progress_cb(100, "Budget update completed successfully.")
+
+            return f"Successfully updated Campaign #{parsed.campaign_id} budget to ${parsed.new_budget:,.2f}."
+
+        elif name == "pause_campaign":
+            parsed = PauseCampaignInput.model_validate(args)
+            cursor.execute("UPDATE campaigns SET status = 'PAUSED' WHERE id = ?", (parsed.campaign_id,))
+            cursor.execute(
+                "INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)",
+                (session.user_id, "PAUSE_CAMPAIGN", f"Campaign {parsed.campaign_id} paused. Reason: {parsed.reason}")
+            )
+            conn.commit()
+            return f"Campaign #{parsed.campaign_id} is now PAUSED. Audit record logged."
+
+    finally:
+        conn.close()
+
+    raise ValueError(f"Unknown or unauthorized tool call: {name}")

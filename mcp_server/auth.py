@@ -1,61 +1,30 @@
-from db.database import get_connection
-
-class UserSession:
-    """Stores active user session context in the MCP Server."""
-    def __init__(self):
-        self.current_user = None
-
-    def set_user(self, user):
-        old_role = self.current_user["role"] if self.current_user else None
-        self.current_user = dict(user) if user else None
-        new_role = self.current_user["role"] if self.current_user else None
-
-        # Return True if role changed (triggers notifications/tools/list_changed)
-        return old_role != new_role
+"""
+Authentication and session state management.
+Tracks active user session, role capabilities, and client negotiation capabilities.
+"""
+from typing import Optional
 
 
-# Global active session instance
-active_session = UserSession()
+class SessionState:
+    def __init__(self, user_id: int = 3, username: str = "employee", role: str = "ANALYST"):
+        self.user_id: int = user_id
+        self.username: str = username
+        self.role: str = role
+        # Capability negotiation flags set during initialize
+        self.supports_elicitation: bool = False
+        self.supports_sampling: bool = False
 
-
-def authenticate(username, password):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
+    def authenticate_as(self, user_id: int, username: str, new_role: str) -> bool:
         """
-        SELECT id, username, role FROM users
-        WHERE username = ? AND password = ?
-        """,
-        (username, password)
-    )
-
-    user = cursor.fetchone()
-    conn.close()
-
-    if user:
-        # Convert row object to dictionary
-        user_dict = dict(user)
-        role_changed = active_session.set_user(user_dict)
-        return user_dict, role_changed
-
-    return None, False
+        Updates session user and role dynamically.
+        Returns True if role changed (signaling a tools/list_changed notification).
+        """
+        role_changed = self.role != new_role
+        self.user_id = user_id
+        self.username = username
+        self.role = new_role
+        return role_changed
 
 
-def get_active_user():
-    return active_session.current_user
-
-
-def is_admin(user=None):
-    user = user or active_session.current_user
-    return bool(user and user["role"].upper() == "ADMIN")
-
-
-def is_manager(user=None):
-    user = user or active_session.current_user
-    return bool(user and user["role"].upper() in ["ADMIN", "MANAGER"])
-
-
-def is_analyst(user=None):
-    user = user or active_session.current_user
-    return bool(user and user["role"].upper() in ["ADMIN", "MANAGER", "ANALYST"])
+# Global session object for the MCP server instance
+session = SessionState()
