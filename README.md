@@ -26,3 +26,7 @@ If a client connects declaring `elicitation: false` during `initialize`, high-bu
 
 ### Transport Rationale
 Built with **stdio** for simple local developer usage, designed for easy deployment to **Streamable HTTP** behind auth proxies for multi-team web access.
+## 📹 Demo Video & Evidence
+
+* **Demo Video:** [Watch Video Demo Here](https://1drv.ms/v/c/ebb6816249078c5a/IQD6pYkjA4u_RbxZIwg-wirpATBQeDoQflIuKmqsj8URm0k?e=pWPKUG)
+* **Execution Transcript:** [`demo_transcript.txt`](./demo_transcript.txt)
