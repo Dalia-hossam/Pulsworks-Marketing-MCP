@@ -90,6 +90,7 @@ JSON Schema validation is applied before processing tool inputs.
 - Streamable HTTP Transport
 
 ---
+```
 
 ## Authors
 
